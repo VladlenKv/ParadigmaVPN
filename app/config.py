@@ -1,8 +1,17 @@
-from functools import lru_cache
+﻿from functools import lru_cache
 from typing import Literal
 
-from pydantic import AnyHttpUrl, Field, SecretStr, field_validator
+from pydantic import AnyHttpUrl, Field, SecretStr, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+DEFAULT_URLS = {
+    "app_base_url": "https://bot.paradigma-vpn.example",
+    "marzban_base_url": "https://panel.paradigma-vpn.example",
+    "public_site_url": "https://paradigma-vpn.example",
+    "support_url": "https://t.me/paradigma_support",
+    "terms_url": "https://paradigma-vpn.example/terms",
+    "privacy_url": "https://paradigma-vpn.example/privacy",
+}
 
 
 class Settings(BaseSettings):
@@ -10,14 +19,14 @@ class Settings(BaseSettings):
 
     bot_token: SecretStr = Field(default=SecretStr(""))
     app_env: Literal["local", "dev", "staging", "production"] = "local"
-    app_base_url: AnyHttpUrl = "https://bot.paradigma-vpn.example"
+    app_base_url: AnyHttpUrl = DEFAULT_URLS["app_base_url"]
     webhook_secret: SecretStr = Field(default=SecretStr(""))
     webhook_path: str = "/telegram/webhook"
 
     database_url: str = "postgresql+asyncpg://paradigma:paradigma@postgres:5432/paradigma_vpn"
     redis_url: str | None = "redis://redis:6379/0"
 
-    marzban_base_url: AnyHttpUrl = "https://panel.paradigma-vpn.example"
+    marzban_base_url: AnyHttpUrl = DEFAULT_URLS["marzban_base_url"]
     marzban_username: str = ""
     marzban_password: SecretStr = Field(default=SecretStr(""))
     marzban_verify_ssl: bool = True
@@ -25,10 +34,10 @@ class Settings(BaseSettings):
     marzban_default_data_limit_gb: int | None = None
     marzban_default_expire_days: int | None = None
 
-    public_site_url: AnyHttpUrl = "https://paradigma-vpn.example"
-    support_url: AnyHttpUrl = "https://t.me/paradigma_support"
-    terms_url: AnyHttpUrl = "https://paradigma-vpn.example/terms"
-    privacy_url: AnyHttpUrl = "https://paradigma-vpn.example/privacy"
+    public_site_url: AnyHttpUrl = DEFAULT_URLS["public_site_url"]
+    support_url: AnyHttpUrl = DEFAULT_URLS["support_url"]
+    terms_url: AnyHttpUrl = DEFAULT_URLS["terms_url"]
+    privacy_url: AnyHttpUrl = DEFAULT_URLS["privacy_url"]
 
     payment_provider: Literal["manual"] = "manual"
     payment_webhook_secret: SecretStr = Field(default=SecretStr(""))
@@ -38,6 +47,21 @@ class Settings(BaseSettings):
     trial_duration_days: int = 3
     trial_traffic_limit_gb: int = 10
 
+    @field_validator(
+        "app_base_url",
+        "marzban_base_url",
+        "public_site_url",
+        "support_url",
+        "terms_url",
+        "privacy_url",
+        mode="before",
+    )
+    @classmethod
+    def empty_url_as_default(cls, value: object, info: ValidationInfo) -> object:
+        if value == "":
+            return DEFAULT_URLS[info.field_name]
+        return value
+
     @field_validator("webhook_path")
     @classmethod
     def webhook_path_must_start_with_slash(cls, value: str) -> str:
@@ -46,13 +70,20 @@ class Settings(BaseSettings):
             raise ValueError(msg)
         return value
 
+    @field_validator("marzban_default_data_limit_gb", "marzban_default_expire_days", mode="before")
+    @classmethod
+    def empty_optional_int_as_none(cls, value: object) -> object:
+        return None if value == "" else value
+
     @field_validator("admin_telegram_ids", mode="before")
     @classmethod
     def parse_admin_ids(cls, value: object) -> set[int]:
         if value in (None, ""):
             return set()
+        if isinstance(value, int):
+            return {value}
         if isinstance(value, set):
-            return value
+            return {int(item) for item in value}
         if isinstance(value, str):
             return {int(item.strip()) for item in value.split(",") if item.strip()}
         if isinstance(value, list | tuple):
