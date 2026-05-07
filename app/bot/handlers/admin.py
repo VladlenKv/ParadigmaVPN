@@ -1,4 +1,4 @@
-﻿from aiogram import Router
+from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy import func, select
@@ -36,18 +36,18 @@ async def confirm_payment_by_id(
     payment_id: int,
     session: AsyncSession,
     settings: Settings,
-) -> tuple[bool, str, Payment | None]:
+) -> tuple[bool, bool, str, Payment | None]:
     payment = await get_payment_with_relations(session, payment_id)
     if not payment or not payment.subscription:
-        return False, ru.PAYMENT_NOT_FOUND, None
+        return False, False, ru.PAYMENT_NOT_FOUND, None
     if payment.status == PaymentStatus.paid.value:
-        return True, f"Платеж #{payment.id} уже был подтвержден.", payment
+        return True, True, f"Платеж #{payment.id} уже был подтвержден.", payment
 
     plan = payment.subscription.plan
     if not plan:
         plan = await session.scalar(select(Plan).where(Plan.id == payment.subscription.plan_id))
     if not plan:
-        return False, "Тариф для платежа не найден.", payment
+        return False, False, "Тариф для платежа не найден.", payment
 
     await PaymentService(session).mark_paid(payment)
     client = MarzbanClient(settings)
@@ -55,12 +55,12 @@ async def confirm_payment_by_id(
         await MarzbanProvisioningService(client).provision(payment.user, payment.subscription, plan)
     except MarzbanError:
         await session.commit()
-        return False, ru.PROVISIONING_FAILED.format(payment_id=payment.id), payment
+        return True, False, ru.PROVISIONING_FAILED.format(payment_id=payment.id), payment
     finally:
         await client.aclose()
 
     await session.commit()
-    return True, ru.PAYMENT_CONFIRMED.format(payment_id=payment.id), payment
+    return True, True, ru.PAYMENT_CONFIRMED.format(payment_id=payment.id), payment
 
 
 @router.message(Command("admin"))
@@ -169,15 +169,17 @@ async def admin_confirm_payment_callback(
     if not call.data:
         return
     payment_id = int(call.data.rsplit(":", maxsplit=1)[1])
-    ok, text, payment = await confirm_payment_by_id(payment_id, session, settings)
+    payment_confirmed, provisioned, text, payment = await confirm_payment_by_id(payment_id, session, settings)
     if call.message:
         await call.message.edit_text(text, reply_markup=admin_menu_keyboard())
-    if ok and payment and payment.user:
-        await call.bot.send_message(
-            payment.user.telegram_id,
-            ru.USER_PAYMENT_CONFIRMED.format(payment_id=payment.id),
+    if payment_confirmed and payment and payment.user:
+        user_text = (
+            ru.USER_PAYMENT_CONFIRMED.format(payment_id=payment.id)
+            if provisioned
+            else ru.USER_PAYMENT_PENDING_PROVISIONING.format(payment_id=payment.id)
         )
-    await call.answer("Готово" if ok else "Ошибка", show_alert=not ok)
+        await call.bot.send_message(payment.user.telegram_id, user_text)
+    await call.answer("Готово" if payment_confirmed else "Не подтверждено", show_alert=not payment_confirmed)
 
 
 @router.message(Command("confirm_payment"))
@@ -190,10 +192,14 @@ async def confirm_payment(message: Message, session: AsyncSession, settings: Set
         await message.answer("Использование: /confirm_payment <payment_id>")
         return
 
-    ok, text, payment = await confirm_payment_by_id(int(parts[1]), session, settings)
+    payment_confirmed, provisioned, text, payment = await confirm_payment_by_id(
+        int(parts[1]), session, settings
+    )
     await message.answer(text)
-    if ok and payment and payment.user:
-        await message.bot.send_message(
-            payment.user.telegram_id,
-            ru.USER_PAYMENT_CONFIRMED.format(payment_id=payment.id),
+    if payment_confirmed and payment and payment.user:
+        user_text = (
+            ru.USER_PAYMENT_CONFIRMED.format(payment_id=payment.id)
+            if provisioned
+            else ru.USER_PAYMENT_PENDING_PROVISIONING.format(payment_id=payment.id)
         )
+        await message.bot.send_message(payment.user.telegram_id, user_text)
