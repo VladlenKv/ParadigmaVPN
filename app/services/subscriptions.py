@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.config import Settings
 from app.db.models import Plan, Subscription, SubscriptionStatus, User
@@ -46,6 +47,7 @@ class SubscriptionService:
         result = await self._session.execute(
             select(Subscription)
             .where(Subscription.user_id == user.id)
+            .options(selectinload(Subscription.plan))
             .order_by(Subscription.created_at.desc())
             .limit(1)
         )

@@ -1,14 +1,12 @@
-import asyncio
-import logging
+﻿import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 
 from app.config import Settings
-
-logger = logging.getLogger(__name__)
 
 
 class MarzbanError(RuntimeError):
@@ -36,11 +34,21 @@ class MarzbanClient:
     def __init__(self, settings: Settings, client: httpx.AsyncClient | None = None) -> None:
         self._settings = settings
         self._client = client or httpx.AsyncClient(
-            base_url=str(settings.marzban_base_url).rstrip("/"),
+            base_url=self._normalize_base_url(str(settings.marzban_base_url)),
             verify=settings.marzban_verify_ssl,
             timeout=httpx.Timeout(15.0),
         )
         self._access_token: str | None = None
+
+    @staticmethod
+    def _normalize_base_url(value: str) -> str:
+        parsed = urlsplit(value)
+        path = parsed.path.rstrip("/")
+        if path.endswith("/dashboard"):
+            path = path[: -len("/dashboard")]
+        elif path == "dashboard":
+            path = ""
+        return urlunsplit((parsed.scheme, parsed.netloc, path, "", "")).rstrip("/")
 
     async def aclose(self) -> None:
         await self._client.aclose()
@@ -64,8 +72,7 @@ class MarzbanClient:
         self._access_token = token
 
     async def create_user(self, payload: MarzbanUserPayload) -> dict[str, Any]:
-        body = self._user_body(payload)
-        return await self._request("POST", "/api/user", json=body)
+        return await self._request("POST", "/api/user", json=self._user_body(payload))
 
     async def get_user(self, username: str) -> dict[str, Any]:
         return await self._request("GET", f"/api/user/{username}")

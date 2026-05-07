@@ -1,4 +1,4 @@
-from aiogram import Router
+﻿from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 from sqlalchemy import func, select
@@ -40,8 +40,14 @@ async def confirm_payment_by_id(
     payment = await get_payment_with_relations(session, payment_id)
     if not payment or not payment.subscription:
         return False, False, ru.PAYMENT_NOT_FOUND, None
-    if payment.status == PaymentStatus.paid.value:
-        return True, True, f"Платеж #{payment.id} уже был подтвержден.", payment
+
+    already_provisioned = (
+        payment.status == PaymentStatus.paid.value
+        and payment.subscription.status == SubscriptionStatus.active.value
+        and bool(payment.subscription.subscription_url)
+    )
+    if already_provisioned:
+        return True, True, f"Платеж #{payment.id} уже был подтвержден и выдан.", payment
 
     plan = payment.subscription.plan
     if not plan:
@@ -49,7 +55,9 @@ async def confirm_payment_by_id(
     if not plan:
         return False, False, "Тариф для платежа не найден.", payment
 
-    await PaymentService(session).mark_paid(payment)
+    if payment.status != PaymentStatus.paid.value:
+        await PaymentService(session).mark_paid(payment)
+
     client = MarzbanClient(settings)
     try:
         await MarzbanProvisioningService(client).provision(payment.user, payment.subscription, plan)
@@ -168,8 +176,11 @@ async def admin_confirm_payment_callback(
         return
     if not call.data:
         return
+
     payment_id = int(call.data.rsplit(":", maxsplit=1)[1])
-    payment_confirmed, provisioned, text, payment = await confirm_payment_by_id(payment_id, session, settings)
+    payment_confirmed, provisioned, text, payment = await confirm_payment_by_id(
+        payment_id, session, settings
+    )
     if call.message:
         await call.message.edit_text(text, reply_markup=admin_menu_keyboard())
     if payment_confirmed and payment and payment.user:
@@ -179,7 +190,7 @@ async def admin_confirm_payment_callback(
             else ru.USER_PAYMENT_PENDING_PROVISIONING.format(payment_id=payment.id)
         )
         await call.bot.send_message(payment.user.telegram_id, user_text)
-    await call.answer("Готово" if payment_confirmed else "Не подтверждено", show_alert=not payment_confirmed)
+    await call.answer("Готово" if payment_confirmed else "Не подтверждено", show_alert=False)
 
 
 @router.message(Command("confirm_payment"))
