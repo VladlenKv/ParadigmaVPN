@@ -53,3 +53,18 @@ PROVISIONING_FAILED = (
     "Платеж #{payment_id} подтвержден, но Marzban временно недоступен. "
     "Подписка переведена в статус failed, требуется повторная выдача."
 )
+
+ADMIN_MENU = "⚙️ Админ-режим Paradigma VPN\n\nВыберите действие."
+ADMIN_STATS = (
+    "📊 Статистика\n\n"
+    "Пользователи: {users_count}\n"
+    "Ожидают оплаты: {pending_payments}\n"
+    "Оплаченные платежи: {paid_payments}\n"
+    "Активные подписки: {active_subscriptions}\n"
+    "Ошибки выдачи: {failed_subscriptions}"
+)
+ADMIN_NO_PENDING_PAYMENTS = "Нет платежей, ожидающих подтверждения."
+USER_PAYMENT_CONFIRMED = (
+    "✅ Платеж #{payment_id} подтвержден.\n\n"
+    "Если выдача доступа прошла успешно, ссылка появится в разделе «Моя подписка»."
+)
