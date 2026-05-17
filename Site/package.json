@@ -1,0 +1,53 @@
+{
+  "name": "paradigma-vpn-site",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:api": "node server/index.js",
+    "build": "tsc -b && vite build",
+    "start": "node server/index.js",
+    "db:migrate": "node server/migrate.js",
+    "db:seed": "node server/seed-admin.js",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@radix-ui/react-slot": "^1.2.4",
+    "@tailwindcss/vite": "^4.2.1",
+    "bcryptjs": "^3.0.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.5.2",
+    "framer-motion": "^12.38.0",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "lucide-react": "^0.577.0",
+    "pg": "^8.20.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.14.2",
+    "tailwind-merge": "^3.5.0",
+    "tailwindcss": "^4.2.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.48.0",
+    "vite": "^7.3.1"
+  }
+}
